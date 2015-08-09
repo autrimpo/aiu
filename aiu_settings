@@ -1,0 +1,17 @@
+#!/bin/sh
+
+# directory where aiu will store its files
+# right now only used for the backlog file
+aiu_home="$HOME/.aiu"
+
+# name of the backlog file
+aiu_backlog="backlog"
+
+# directory containg your files
+aiu_library="$HOME/Videos"
+
+# player used to open files
+aiu_player="mpv"
+
+# dmenu command to use
+aiu_dmenu="dmenu"

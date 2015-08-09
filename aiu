@@ -1,0 +1,35 @@
+#!/bin/sh
+
+. aiu_settings
+
+helpmsg="Usage: aiu <command>
+Commands:
+    list - lists unwatched episodes
+    open - lets you pick an episode using dmenu
+    add <filename> - adds a file to the backlog
+    add dir - adds all the files in the current directory to the backlog
+    configure - opens the settings file using $EDITOR
+    conf - shorthand for configure
+    help - displays this message"
+
+case "$1" in
+    list)
+        cat "$aiu_home/$aiu_backlog" | sort
+        ;;
+    open)
+        aiu_open
+        ;;
+    add)
+        if [ "$2" == "dir" ];then
+            aiu_add_dir
+        else
+            aiu_add "$2"
+        fi
+        ;;
+    configure|conf)
+        $EDITOR "$(dirname $(which aiu))/aiu_settings"
+        ;;
+    help|*)
+        echo "$helpmsg"
+    ;;
+esac

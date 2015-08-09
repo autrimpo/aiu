@@ -1,0 +1,17 @@
+#!/bin/sh
+
+. aiu_settings
+
+aiu_init
+
+if [ -n "$1" ];then
+    name=$(basename "$1" | grep -Eo '\[.*\].*-.[0-9]+')
+    if [ $(grep -Fc "$name" "$aiu_home/$aiu_backlog") -eq 0 ];then
+        echo $name >> "$aiu_home/$aiu_backlog"
+        echo "$name added"
+    else
+        echo "File already in backlog"
+    fi
+else
+    echo "Please specify a file to add"
+fi

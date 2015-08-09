@@ -1,0 +1,11 @@
+#!/bin/sh
+
+. aiu_settings
+
+aiu_init
+
+if [ -s "$aiu_home/$aiu_backlog" ];then
+    sort "$aiu_home/$aiu_backlog" | $aiu_dmenu
+else
+    echo -e "The backlog is empty\nTry adding something with 'aiu add'" | $aiu_dmenu && exit 1
+fi
