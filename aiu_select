@@ -5,7 +5,18 @@
 aiu_init
 
 if [ -s "$aiu_home/$aiu_backlog" ];then
-    sort "$aiu_home/$aiu_backlog" | $aiu_dmenu
+    series=$(sort "$aiu_home/$aiu_backlog" | sed 's/\(.*\)-.*/\1/' | uniq | $aiu_dmenu)
+    if [ $? -eq 0 ]; then
+        episodes=$(sort "$aiu_home/$aiu_backlog" | grep -F "$series")
+        count=$(echo "$episodes" | wc -l)
+        if [ $count -eq 1 -a "$aiu_autoplay_single" == "true" ];then
+            echo "$episodes"
+        else
+            echo "$episodes"| $aiu_dmenu
+        fi
+    else
+        exit 1
+    fi
 else
     echo -e "The backlog is empty\nTry adding something with 'aiu add'" | $aiu_dmenu && exit 1
 fi

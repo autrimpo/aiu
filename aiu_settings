@@ -15,3 +15,6 @@ aiu_player="mpv"
 
 # dmenu command to use
 aiu_dmenu="dmenu"
+
+# automatically play episode when only one in the series
+aiu_autoplay_single="true"
