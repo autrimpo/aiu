@@ -16,5 +16,5 @@ aiu_player="mpv"
 # dmenu command to use
 aiu_dmenu="dmenu"
 
-# automatically play episode when only one in the series
-aiu_autoplay_single="true"
+# automatically play oldest episode in series
+aiu_autoplay="true"

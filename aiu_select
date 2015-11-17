@@ -9,8 +9,8 @@ if [ -s "$aiu_home/$aiu_backlog" ];then
     if [ $? -eq 0 ]; then
         episodes=$(sort "$aiu_home/$aiu_backlog" | grep -F "$series")
         count=$(echo "$episodes" | wc -l)
-        if [ $count -eq 1 -a "$aiu_autoplay_single" == "true" ];then
-            echo "$episodes"
+        if [ "$aiu_autoplay" == "true" ];then
+            echo "$episodes" | sort -g | head -n 1
         else
             echo "$episodes"| $aiu_dmenu
         fi
