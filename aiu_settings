@@ -8,13 +8,21 @@ aiu_home="$HOME/.aiu"
 aiu_backlog="backlog"
 
 # directory containg your files
-aiu_library="$HOME/Videos"
+aiu_video_library="$HOME/Videos"
+aiu_comic_library="$HOME/Comics"
 
 # player used to open files
 aiu_player="mpv"
+
+# reader used to open files
+aiu_reader="zathura"
 
 # dmenu command to use
 aiu_dmenu="dmenu"
 
 # automatically play oldest episode in series
 aiu_autoplay="true"
+
+aiu_video_prefix="[V] "
+
+aiu_comic_prefix="[C] "

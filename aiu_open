@@ -4,8 +4,16 @@
 
 name="$(aiu_select)"
 if [ $? -eq 0 ]; then
-    name="$(echo "$name" | sed -r 's/(\[|\])/\\\1/g')"
-    target="$(find "$aiu_library" -type f -name "*$name*")"
-    $aiu_player "$target"
+    name="$(echo "$name" | sed -e 's/^\${aiu_video_prefix}//' -e 's/^\${aiu_comic_prefix}//' -e 's/[]\/$*.^|[]/\\&/g')"
+    target="$(find "$aiu_video_library" "$aiu_comic_library" -type f -name "*$name*")"
+    type=$(file --brief --mime-type "$target")
+    case "$type" in
+        video/*)
+            $aiu_player "$target"
+            ;;
+        application/zip)
+            $aiu_reader "$target"
+            ;;
+    esac
     sed -i "/$name/d" "$aiu_home/$aiu_backlog"
 fi

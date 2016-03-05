@@ -5,10 +5,14 @@
 aiu_init
 
 if [ -s "$aiu_home/$aiu_backlog" ];then
-    series=$(sort "$aiu_home/$aiu_backlog" | sed 's/\(.*\)-.*/\1/' | uniq | $aiu_dmenu)
+    re_safe_video_prefix="$(echo "$aiu_video_prefix" | sed -e 's/[]\/$*.^|[]/\\&/g')"
+    re_safe_comic_prefix="$(echo "$aiu_comic_prefix" | sed -e 's/[]\/$*.^|[]/\\&/g')"
+    series=$(eval "sort << EOF
+$(< $aiu_home/$aiu_backlog )
+EOF" | sed 's/\(.*\)[#-].*/\1/' | uniq | $aiu_dmenu)
     if [ $? -eq 0 ]; then
+        series="$(echo "$series" | sed -r -e "s/^$re_safe_video_prefix/\${aiu_video_prefix}/" -e "s/^$re_safe_comic_prefix/\${aiu_comic_prefix}/")"
         episodes=$(sort "$aiu_home/$aiu_backlog" | grep -F "$series")
-        count=$(echo "$episodes" | wc -l)
         if [ "$aiu_autoplay" == "true" ];then
             echo "$episodes" | sort -g | head -n 1
         else
