@@ -1,5 +1,0 @@
-#!/bin/sh
-
-for i in *; do
-    aiu_add "$i"
-done
