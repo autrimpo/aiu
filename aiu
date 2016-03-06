@@ -32,14 +32,16 @@ function aiu_add() {
         type=$(file --brief --mime-type "$target")
         case "$type" in
             application/zip|application/rar)
-                name=$(echo '${aiu_comic_prefix}'"$name" | grep -Eo '.*[0-9]+(\.[0-9]+)?')
+                name=$(echo "$name" | grep -Eo '.*[0-9]+(\.[0-9]+)?')
+                display_name=$(echo '${aiu_comic_prefix}'"$name")
                 ;;
             *)
-                name=$(echo '${aiu_video_prefix}'"$name"| grep -Eo '.*-.[0-9]+')
+                name=$(echo "$name"| grep -Eo '.*-.[0-9]+')
+                display_name=$(echo '${aiu_video_prefix}'"$name")
                 ;;
         esac
-        if [ $(grep -Fcx "$name" "$aiu_home/$aiu_backlog") -eq 0 ];then
-            echo "$name" >> "$aiu_home/$aiu_backlog"
+        if [ $(grep -Fcx "$display_name" "$aiu_home/$aiu_backlog") -eq 0 ];then
+            echo "$display_name" >> "$aiu_home/$aiu_backlog"
             echo "$name added"
         else
             echo "File already in backlog"
