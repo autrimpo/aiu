@@ -13,7 +13,8 @@ to watch using dmenu.
 ## How to use
 - Start by adding some files to your backlog using `aiu add <file>`
 - If you have a whole directory of files you want to add (e.g. a whole season), you can use `aiu add dir` instead, which adds all files in the current directory
-- Right now, *aiu* expects files to be named `[group] Title - 01.ext`, files named differently might not work well (or at all)
+- Video files are expected to be named `.* - 01.ext`
+- Comic files are expected to be named `.* #01.ext`
 - Browse your backlog using `aiu open`
-- Select something and enjoy! It gets removed from your backlog automatically after you finish watching
+- Select something and enjoy! It gets removed from your backlog automatically after you finish watching/reading
 - Using *aiu* with something like [Flexget](http://flexget.com/) is highly encouraged - set it up to add things to your backlog automatically
