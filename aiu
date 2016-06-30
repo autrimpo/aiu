@@ -1,8 +1,5 @@
 #!/bin/sh
 
-re_safe_video_prefix="$(echo "$aiu_video_prefix" | sed -e 's/[]\/$*.^|[]/\\&/g')"
-re_safe_comic_prefix="$(echo "$aiu_comic_prefix" | sed -e 's/[]\/$*.^|[]/\\&/g')"
-
 helpmsg="Usage: aiu <command>
 Commands:
     list - lists unwatched episodes
@@ -128,6 +125,8 @@ EOF" | sed 's/\(.*\)[#-].*/\1/' | uniq | $aiu_dmenu)
 
 aiu_init
 . "$aiu_home/settings"
+re_safe_video_prefix="$(echo "$aiu_video_prefix" | sed -e 's/[]\/$*.^|[]/\\&/g')"
+re_safe_comic_prefix="$(echo "$aiu_comic_prefix" | sed -e 's/[]\/$*.^|[]/\\&/g')"
 
 case "$1" in
     list)
@@ -150,3 +149,7 @@ case "$1" in
         echo "$helpmsg"
     ;;
 esac
+
+if [ -n "$(find $aiu_home -maxdepth 1 -name 'sed*' -print -quit)" ];then
+  rm -f $aiu_home/sed*
+fi
