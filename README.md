@@ -1,14 +1,19 @@
 # aiu
 
-*aiu* is a set of scripts created to make keeping track of your media easier.
+*aiu* is a shell script created to make keeping track of your media easier.
 It keeps a backlog of things you haven't watched yet and helps you pick something
 to watch using dmenu.
 
 ## Installation
+
+### Manual
 - Clone the repo somewhere
 - Include it in your `$PATH`
 - You *should* run `aiu conf` and set up a few things
 - That's it!
+
+### Arch Linux
+*aiu* can be installed from *AUR* using the **aiu-git** package.
 
 ## How to use
 - Start by adding some files to your backlog using `aiu add <file>`
