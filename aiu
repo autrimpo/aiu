@@ -1,7 +1,5 @@
 #!/bin/sh
 
-. aiu_settings
-
 re_safe_video_prefix="$(echo "$aiu_video_prefix" | sed -e 's/[]\/$*.^|[]/\\&/g')"
 re_safe_comic_prefix="$(echo "$aiu_comic_prefix" | sed -e 's/[]\/$*.^|[]/\\&/g')"
 
@@ -11,16 +9,48 @@ Commands:
     open - lets you pick an episode using dmenu
     add <filename> - adds a file to the backlog
     add dir - adds all the files in the current directory to the backlog
-    configure - opens the settings file using $EDITOR
-    conf - shorthand for configure
+    configure|conf - opens the settings file using $EDITOR
     help - displays this message"
 
+read -d '' aiu_default_settings << "_EOF_"
+# directory containg your files
+aiu_video_library="$HOME/Videos"
+aiu_comic_library="$HOME/Comics"
+
+# player used to open files
+aiu_player="mpv"
+
+# reader used to open files
+aiu_reader="zathura"
+
+# dmenu command to use
+aiu_dmenu="dmenu"
+
+# automatically play oldest episode in series
+aiu_autoplay="true"
+
+aiu_video_prefix="[V] "
+
+aiu_comic_prefix="[C] "
+_EOF_
+
 function aiu_init() {
-    if [ ! -d "$aiu_home" ];then
-        mkdir "$aiu_home"
+    if [ -z "$XDG_CONFIG_HOME" ]; then
+      aiu_home="$HOME/.config/aiu"
+    else
+      aiu_home="$XDG_CONFIG_HOME/aiu"
     fi
-    if [ ! -f "$aiu_home/$aiu_backlog" ];then
-        touch "$aiu_home/$aiu_backlog"
+
+    if [ ! -d "$aiu_home" ];then
+        mkdir -p "$aiu_home"
+    fi
+
+    if [ ! -f "$aiu_home/backlog" ];then
+        touch "$aiu_home/backlog"
+    fi
+
+    if [ ! -f "$aiu_home/settings" ];then
+      echo "$aiu_default_settings" > "$aiu_home/settings"
     fi
 }
 
@@ -40,8 +70,8 @@ function aiu_add() {
                 display_name=$(echo '${aiu_video_prefix}'"$name")
                 ;;
         esac
-        if [ $(grep -Fcx "$display_name" "$aiu_home/$aiu_backlog") -eq 0 ];then
-            echo "$display_name" >> "$aiu_home/$aiu_backlog"
+        if [ $(grep -Fcx "$display_name" "$aiu_home/backlog") -eq 0 ];then
+            echo "$display_name" >> "$aiu_home/backlog"
             echo "$name added"
         else
             echo "File already in backlog"
@@ -71,18 +101,18 @@ function aiu_open() {
                 $aiu_reader "$target"
                 ;;
         esac
-        sed -i "/$name/d" "$aiu_home/$aiu_backlog"
+        sed -i "/$name/d" "$aiu_home/backlog"
     fi
 }
 
 function aiu_select() {
-    if [ -s "$aiu_home/$aiu_backlog" ];then
+    if [ -s "$aiu_home/backlog" ];then
         series=$(eval "sort << EOF
-$(< $aiu_home/$aiu_backlog )
+$(< $aiu_home/backlog )
 EOF" | sed 's/\(.*\)[#-].*/\1/' | uniq | $aiu_dmenu)
         if [ $? -eq 0 ]; then
             series="$(echo "$series" | sed -r -e "s/^$re_safe_video_prefix/\${aiu_video_prefix}/" -e "s/^$re_safe_comic_prefix/\${aiu_comic_prefix}/")"
-            episodes=$(sort "$aiu_home/$aiu_backlog" | grep -F "$series")
+            episodes=$(sort "$aiu_home/backlog" | grep -F "$series")
             if [ "$aiu_autoplay" == "true" ];then
                 echo "$episodes" | sort -g | head -n 1
             else
@@ -96,15 +126,17 @@ EOF" | sed 's/\(.*\)[#-].*/\1/' | uniq | $aiu_dmenu)
     fi
 }
 
+aiu_init
+. "$aiu_home/settings"
+
 case "$1" in
     list)
-        sort "$aiu_home/$aiu_backlog" | sed -e 's/^\${aiu_video_prefix}//' -e 's/^\${aiu_comic_prefix}//'
+        sort "$aiu_home/backlog" | sed -e 's/^\${aiu_video_prefix}//' -e 's/^\${aiu_comic_prefix}//'
         ;;
     open)
         aiu_open
         ;;
     add)
-        aiu_init
         if [ "$2" == "dir" ];then
             aiu_add_dir
         else
@@ -112,7 +144,7 @@ case "$1" in
         fi
         ;;
     configure|conf)
-        $EDITOR "$(dirname $(which aiu))/aiu_settings"
+        $EDITOR "$aiu_home/settings"
         ;;
     help|*)
         echo "$helpmsg"
