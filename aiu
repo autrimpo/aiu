@@ -9,7 +9,7 @@ Commands:
     configure|conf - opens the settings file using $EDITOR
     help - displays this message"
 
-read -d '' aiu_default_settings << "_EOF_"
+aiu_default_settings=$(cat << "_EOF_"
 # directory containg your files
 aiu_video_library="$HOME/Videos"
 aiu_comic_library="$HOME/Comics"
@@ -30,8 +30,9 @@ aiu_video_prefix="[V] "
 
 aiu_comic_prefix="[C] "
 _EOF_
+)
 
-function aiu_init() {
+aiu_init() {
     if [ -z "$XDG_CONFIG_HOME" ]; then
       aiu_home="$HOME/.config/aiu"
     else
@@ -51,7 +52,7 @@ function aiu_init() {
     fi
 }
 
-function aiu_add() {
+aiu_add() {
     if [ -n "$1" ];then
         name=$(basename "$1")
         re_safe_name="$(echo "$name" | sed -e 's/[]\/$*.^|[]/\\&/g')"
@@ -60,14 +61,14 @@ function aiu_add() {
         case "$type" in
             application/zip|application/rar)
                 name=$(echo "$name" | grep -Eo '.*[0-9]+(\.[0-9]+)?')
-                display_name=$(echo '${aiu_comic_prefix}'"$name")
+                display_name='${aiu_comic_prefix}'"$name"
                 ;;
             *)
-                name=$(echo "$name"| grep -Eo '.*-.[0-9]+')
-                display_name=$(echo '${aiu_video_prefix}'"$name")
+                name=$(echo "$name" | grep -Eo '.*-.[0-9]+')
+                display_name='${aiu_video_prefix}'"$name"
                 ;;
         esac
-        if [ $(grep -Fcx "$display_name" "$aiu_home/backlog") -eq 0 ];then
+        if ! grep -Fx "$display_name" "$aiu_home/backlog"; then
             echo "$display_name" >> "$aiu_home/backlog"
             echo "$name added"
         else
@@ -78,16 +79,16 @@ function aiu_add() {
     fi
 }
 
-function aiu_add_dir() {
+aiu_add_dir() {
     for i in *; do
         aiu_add "$i"
     done
 }
 
-function aiu_open() {
-    name="$(aiu_select)"
-    if [ $? -eq 0 ]; then
-        name="$(echo "$name" | sed -e 's/^\${aiu_video_prefix}//' -e 's/^\${aiu_comic_prefix}//' -e 's/[]\/$*.^|[]/\\&/g')"
+aiu_open() {
+    if name="$(aiu_select)"; then
+        name="$(echo "$name" | sed -e "s/^${re_safe_video_prefix}//" -e "s/^${re_safe_comic_prefix}//" -e 's/[]\/$*.^|[]/\\&/g')"
+        echo $name
         target="$(find "$aiu_video_library" "$aiu_comic_library" -type f -name "*$name*")"
         type=$(file --brief --mime-type "$target")
         case "$type" in
@@ -102,24 +103,21 @@ function aiu_open() {
     fi
 }
 
-function aiu_select() {
+aiu_select() {
     if [ -s "$aiu_home/backlog" ];then
-        series=$(eval "sort << EOF
-$(< $aiu_home/backlog )
-EOF" | sed 's/\(.*\)[#-].*/\1/' | uniq | $aiu_dmenu)
-        if [ $? -eq 0 ]; then
+      if series=$(sort "$aiu_home"/backlog | sed -e 's/${aiu_video_prefix}/'"$aiu_video_prefix/" -e 's/${aiu_comic_prefix}/'"$aiu_comic_prefix/" -e 's/\(.*\)[#-].*/\1/' | uniq | $aiu_dmenu); then
             series="$(echo "$series" | sed -r -e "s/^$re_safe_video_prefix/\${aiu_video_prefix}/" -e "s/^$re_safe_comic_prefix/\${aiu_comic_prefix}/")"
             episodes=$(sort "$aiu_home/backlog" | grep -F "$series")
-            if [ "$aiu_autoplay" == "true" ];then
-                echo "$episodes" | sort -g | head -n 1
+            if [ "$aiu_autoplay" = "true" ];then
+                echo "$episodes" | sed -e 's/${aiu_video_prefix}/'"$aiu_video_prefix/" -e 's/${aiu_comic_prefix}/'"$aiu_comic_prefix/" | sort -g | head -n 1
             else
-                echo "$episodes"| $aiu_dmenu
+                echo "$episodes" | sed -e 's/${aiu_video_prefix}/'"$aiu_video_prefix/" -e 's/${aiu_comic_prefix}/'"$aiu_comic_prefix/" | $aiu_dmenu
             fi
         else
             exit 1
         fi
     else
-        echo -e "The backlog is empty\nTry adding something with 'aiu add'" | $aiu_dmenu && exit 1
+        printf "%s\n%s" "The backlog is empty" "Try adding something with 'aiu add'" | $aiu_dmenu && exit 1
     fi
 }
 
@@ -136,7 +134,7 @@ case "$1" in
         aiu_open
         ;;
     add)
-        if [ "$2" == "dir" ];then
+        if [ "$2" = "dir" ];then
             aiu_add_dir
         else
             aiu_add "$2"
@@ -150,6 +148,6 @@ case "$1" in
     ;;
 esac
 
-if [ -n "$(find $aiu_home -maxdepth 1 -name 'sed*' -print -quit)" ];then
-  rm -f $aiu_home/sed*
+if [ -n "$(find "$aiu_home" -maxdepth 1 -name 'sed*' -print -quit)" ];then
+  rm -f "$aiu_home"/sed*
 fi
