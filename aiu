@@ -7,6 +7,7 @@ Commands:
     add <filename> - adds a file to the backlog
     add dir - adds all the files in the current directory to the backlog
     configure|conf - opens the settings file using $EDITOR
+    clean - removes all entries for which files can't be found from the backlog
     help - displays this message"
 
 aiu_default_settings=$(cat << "_EOF_"
@@ -121,6 +122,15 @@ aiu_select() {
     fi
 }
 
+aiu_clean() {
+    sort "$aiu_home/backlog" | sed -e 's/^${aiu_video_prefix}//' -e 's/^${aiu_comic_prefix}//' -e 's/[]\/$*.^|[]/\\&/g' | while read -r name; do
+        target="$(find "$aiu_video_library" "$aiu_comic_library" -type f -name "*$name*")"
+        if [ -z "$target" ]; then
+            sed -i "/$name/d" "$aiu_home/backlog"
+        fi
+    done
+}
+
 aiu_init
 . "$aiu_home/settings"
 re_safe_video_prefix="$(echo "$aiu_video_prefix" | sed -e 's/[]\/$*.^|[]/\\&/g')"
@@ -143,11 +153,14 @@ case "$1" in
     configure|conf)
         $EDITOR "$aiu_home/settings"
         ;;
+    clean)
+        aiu_clean
+        ;;
     help|*)
         echo "$helpmsg"
-    ;;
+        ;;
 esac
 
 if [ -n "$(find "$aiu_home" -maxdepth 1 -name 'sed*' -print -quit)" ];then
-  rm -f "$aiu_home"/sed*
+    rm -f "$aiu_home"/sed*
 fi
