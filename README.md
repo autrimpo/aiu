@@ -20,5 +20,5 @@ You can also issue `aiu write` to write the current settings to the file (in thi
 - Comic files are expected to be named `.* #01 [.*].ext`
 - Partial files with `.part` suffix are supported for adding
 - Browse your backlog using `aiu open`
-- Select something and enjoy! It gets removed from your backlog automatically after you finish watching/reading>
-- Using *aiu* with something like [Flexget](http://flexget.com/) is highly encouraged - set it up to add things to your backlog automatically
+- Select something and enjoy! It gets removed from your backlog automatically after you finish watching/reading
+- Using *aiu* with something like [Flexget](http://flexget.com/) is highly encouraged—set it up to add things to your backlog automatically
