@@ -1,166 +1,319 @@
-#!/bin/sh
+#! /usr/bin/env modernish
+#! use safe
+#! use sys/base
+#! use var/local
+#! use var/loop
+#! use var/string
 
-helpmsg="Usage: aiu <command>
+showusage() {
+putln "Usage: aiu <command>
 Commands:
-    list - lists unwatched episodes
-    open - lets you pick an episode using dmenu
-    add <filename> - adds a file to the backlog
-    add dir - adds all the files in the current directory to the backlog
-    configure|conf - opens the settings file using $EDITOR
-    clean - removes all entries for which files can't be found from the backlog
-    help - displays this message"
+    list|l - lists unwatched episodes
+    open|o - lets you pick an episode using dmenu
+    add|a <filename> - adds a file to the backlog
+    dir|d - adds all the files in the current directory to the backlog
+    show|s - shows the current configuration
+    write|w - writes the current configuration into the config file
+    edit|e - opens the config file using $EDITOR
+    clean|c - removes all with unavailable files from the backlog
+    help|h - displays this message"
+}
 
-aiu_default_settings=$(cat << "_EOF_"
-# directory containg your files
-aiu_video_library="$HOME/Videos"
-aiu_comic_library="$HOME/Comics"
 
-# player used to open files
-aiu_player="mpv"
+findquote() {
+    LOCAL _fq_c _fq_n _fq_v _fq_e IFS; BEGIN
 
-# reader used to open files
-aiu_reader="zathura"
+    _fq_n=$1
 
-# dmenu command to use
-aiu_dmenu="dmenu"
+    for _fq_n do
+        case ${_fq_n} in
+        ( *=* )
+            _fq_v=${_fq_n#*=}
+            _fq_n=${_fq_n%%=*}
+            case ${_fq_n} in
+            ( "" | [0123456789]* | *[!"$ASCIIALNUM"_]* )
+                _fq_e=2
+                break ;;
+            esac ;;
+        ( "" | [0123456789]* | *[!"$ASCIIALNUM"_]* )
+            _fq_e=2
+            break ;;
+        ( * )   ! isset "${_fq_n}" && _fq_e=1 && break
+            eval "_fq_v=\${${_fq_n}}" ;;
+        esac
+        _fq_e=0
 
-# automatically play oldest episode in series
-aiu_autoplay="true"
+        replacein -a _fq_v \[ \\\[
+        replacein -a _fq_v \] \\\]
+        replacein -a _fq_v \? \\\?
+        replacein -a _fq_v \* \\\*
 
-aiu_video_prefix="[V] "
+        eval $_fq_n=$_fq_v
+    done
 
-aiu_comic_prefix="[C] "
-_EOF_
-)
+    case ${_fq_e} in
+    ( 1 )   die "findquote: unset variable: ${_fq_n}" ;;
+    ( 2 )   die "findquote: invalid variable name: ${_fq_n}" ;;
+    esac
+
+    END
+}
 
 aiu_init() {
-    if [ -z "$XDG_CONFIG_HOME" ]; then
-      aiu_home="$HOME/.config/aiu"
+    aiu_home=${XDG_CONFIG_HOME:-$HOME/.config}/aiu
+
+    if is present $aiu_home; then
+        if not is -L dir $aiu_home; then
+            exit 1 $aiu_home exists but is not a directory
+        elif not can read $aiu_home; then
+            exit 1 $aiu_home does not have read permissions
+        elif not can write $aiu_home; then
+            exit 1 $aiu_home does not have write permissions
+        fi
     else
-      aiu_home="$XDG_CONFIG_HOME/aiu"
+        mkdir -p $aiu_home
     fi
 
-    if [ ! -d "$aiu_home" ];then
-        mkdir -p "$aiu_home"
+    if is present $aiu_home/backlog; then
+        if not is -L reg $aiu_home/backlog; then
+            exit 1 $aiu_home/backlog exists but is not a regular file
+        elif not can read $aiu_home/backlog; then
+            exit 1 $aiu_home/backlog does not have read permissions
+        elif not can write $aiu_home/backlog; then
+            exit 1 $aiu_home/backlog does not have write permissions
+        fi
+    else
+        touch $aiu_home/backlog
     fi
 
-    if [ ! -f "$aiu_home/backlog" ];then
-        touch "$aiu_home/backlog"
+    if is present $aiu_home/config; then
+        if not is -L reg $aiu_home/config; then
+            exit 1 $aiu_home/config exists but is not a regular file
+        elif not can read $aiu_home/config; then
+            exit 1 $aiu_home/config does not have read permissions
+        elif not can write $aiu_home/config; then
+            exit 1 $aiu_home/config does not have write permissions
+        fi
+    fi
+}
+
+aiu_conf_load() {
+    if is present $aiu_home/config; then
+        . $aiu_home/config
     fi
 
-    if [ ! -f "$aiu_home/settings" ];then
-      echo "$aiu_default_settings" > "$aiu_home/settings"
+    if which -s xdg-user-dir; then
+        VIDLIB=$(xdg-user-dir VIDEOS)
+        COMLIB=$(xdg-user-dir DOCUMENTS)
+    else
+        VIDLIB=$HOME/Videos
+        COMLIB=$HOME/Documents
     fi
+
+    conf_vid_lib=${video_library:-$VIDLIB}
+    conf_com_lib=${comic_library:-$COMLIB}
+
+    if which -s xdg-open; then
+        PLAYER=xdg-open
+        READER=xdg-open
+    else
+        PLAYER=$(which -1 mpv vlc gmplayer smplayer totem mplayer2 mplayer)
+        READER=$(which -1 YACReader mcomix zathura)
+    fi
+
+    if str empty $PLAYER; then
+        exit 1 Could not autodetect a movie player, please configure one manually
+    fi
+
+    if str empty $READER; then
+        exit 1 Could not autodetect a comic reader, please configure one manually
+    fi
+
+    conf_player=${player:-$PLAYER}
+    conf_reader=${reader:-$READER}
+
+    if which -1 -s rofi; then
+        DMENU="rofi -dmenu"
+    elif which -1 -s dmenu; then
+        DMENU=dmenu
+    fi
+
+    if str empty $READER; then
+        exit 1 Could not autodetect dmenu or a similar tool, please configure one manually
+    fi
+
+    conf_dmenu=${dmenu:-$DMENU}
+
+    conf_autoplay=${autoplay:-true}
+
+    conf_vid_pre=${video_prefix:-[V] }
+
+    conf_com_pre=${comic_prefix:-[C] }
+}
+
+aiu_conf_show() {
+    printf "video_library=\"%s\"\n" $conf_vid_lib
+    printf "comic_library=\"%s\"\n" $conf_com_lib
+    printf "player=\"%s\"\n" $conf_player
+    printf "reader=\"%s\"\n" $conf_reader
+    printf "dmenu=\"%s\"\n" $conf_dmenu
+    printf "autoplay=\"%s\"\n" $conf_autoplay
+    printf "video_prefix=\"%s\"\n" $conf_vid_pre
+    printf "comic_prefix=\"%s\"\n" $conf_com_pre
 }
 
 aiu_add() {
-    if [ -n "$1" ];then
-        name=$(basename "$1")
-        re_safe_name="$(echo "$name" | sed -e 's/[]\/$*.^|[]/\\&/g')"
-        target="$(find "$aiu_video_library" "$aiu_comic_library" -type f -name "*$re_safe_name*")"
-        type=$(file --brief --mime-type "$target")
-        case "$type" in
-            application/zip|application/rar)
-                name=$(echo "$name" | grep -Eo '.*[0-9]+(\.[0-9]+)?')
-                display_name='${aiu_comic_prefix}'"$name"
+    LOCAL name ename target display_name; BEGIN
+    if not str empty $1 && str ematch $1 '(\[.*\])?.* (- )|#[0-9]+'; then
+        name=$(basename $1)
+        if str ematch $name '.*\.part$'; then
+            name=${name%.part}
+        fi
+        if str ematch $name '.*\.[[:alnum:]]+$'; then
+            name=${name%.*}
+        fi
+        shellquote -f name
+        findquote ename=$name
+        target="$(find "$conf_vid_lib" "$conf_com_lib" -type f -name "*$ename*")"
+        if is -L reg $target; then
+            case $target in
+            ( $conf_vid_lib/* )
+                display_name=V$name
                 ;;
-            *)
-                name=$(echo "$name" | grep -Eo '.*-.[0-9]+')
-                display_name='${aiu_video_prefix}'"$name"
+            ( $conf_com_lib/* )
+                display_name=C$name
                 ;;
-        esac
-        if ! grep -Fx "$display_name" "$aiu_home/backlog"; then
-            echo "$display_name" >> "$aiu_home/backlog"
-            echo "$name added"
+            esac
+            replacein -a display_name '"' ''
+            if not grep -Fxq $display_name $aiu_home/backlog; then
+                putln $display_name >> "$aiu_home/backlog"
+                putln "$name added"
+            else
+                putln "File already in backlog"
+                return 1
+            fi
         else
-            echo "File already in backlog"
+            putln "$name not found"
+            return 1
         fi
     else
-        echo "Please specify a file to add"
+        putln "Please specify a file to add"
+        return 1
     fi
+    END
 }
 
 aiu_add_dir() {
-    for i in *; do
-        aiu_add "$i"
-    done
+    LOCAL file; BEGIN
+    LOOP find file -type f; DO
+    if str ematch $file '(\[.*\])?.* (- )|#[0-9]+'; then
+            aiu_add $file
+        fi
+    DONE
+    END
 }
 
 aiu_open() {
-    if name="$(aiu_select)"; then
-        name="$(echo "$name" | sed -e "s/^${re_safe_video_prefix}//" -e "s/^${re_safe_comic_prefix}//" -e 's/[]\/$*.^|[]/\\&/g')"
-        echo $name
-        target="$(find "$aiu_video_library" "$aiu_comic_library" -type f -name "*$name*")"
-        type=$(file --brief --mime-type "$target")
-        case "$type" in
-            video/*)
-                $aiu_player "$target"
-                ;;
-            application/zip)
-                $aiu_reader "$target"
-                ;;
+    LOCAL name ename target; BEGIN
+    if name=$(aiu_select); then
+        replacein name $conf_vid_pre ''
+        replacein name $conf_com_pre ''
+        shellquote -f name
+        findquote ename=$name
+        target=$(find $conf_vid_lib $conf_com_lib -type f -name "*${ename}*")
+        case $target in
+        ( $conf_vid_lib/* )
+            shellquote target
+            eval $conf_player $target
+            ;;
+        ( $conf_com_lib/* )
+            shellquote target
+            eval $conf_reader $target
+            ;;
         esac
-        sed -i "/$name/d" "$aiu_home/backlog"
+        replacein -a name '"' ''
+        grep -Fv $name $aiu_home/backlog > $aiu_home/backlog.new
+        mv $aiu_home/backlog.new $aiu_home/backlog
     fi
+    END
 }
 
 aiu_select() {
-    if [ -s "$aiu_home/backlog" ];then
-      if series=$(sort "$aiu_home"/backlog | sed -e 's/${aiu_video_prefix}/'"$aiu_video_prefix/" -e 's/${aiu_comic_prefix}/'"$aiu_comic_prefix/" -e 's/\(.*\)[#-].*/\1/' | uniq | $aiu_dmenu); then
-            series="$(echo "$series" | sed -r -e "s/^$re_safe_video_prefix/\${aiu_video_prefix}/" -e "s/^$re_safe_comic_prefix/\${aiu_comic_prefix}/")"
-            episodes=$(sort "$aiu_home/backlog" | grep -F "$series")
-            if [ "$aiu_autoplay" = "true" ];then
-                echo "$episodes" | sed -e 's/${aiu_video_prefix}/'"$aiu_video_prefix/" -e 's/${aiu_comic_prefix}/'"$aiu_comic_prefix/" | sort -g | head -n 1
+    LOCAL series episodes; BEGIN
+    if is nonempty $aiu_home/backlog; then
+        series=$(sort -g $aiu_home/backlog |
+                 sed -E\
+                     -e 's/( -)? [[:digit:]]+[.[:alnum:]]*( \[[[:digit:]]+p\])?//' \
+                     -e s/^V/${conf_vid_pre}/ \
+                     -e s/^C/${conf_com_pre}/ |
+                 uniq | eval $conf_dmenu)
+        if so; then
+            replacein series ${conf_vid_pre} ''
+            replacein series ${conf_com_pre} ''
+            trim series
+
+            episodes=$(grep -F $series $aiu_home/backlog |
+                       sed -e s/^V/${conf_vid_pre}/ \
+                           -e s/^C/${conf_com_pre}/ |
+                       sort -g);
+            if $conf_autoplay eq true; then
+                putln $episodes | head -n 1
             else
-                echo "$episodes" | sed -e 's/${aiu_video_prefix}/'"$aiu_video_prefix/" -e 's/${aiu_comic_prefix}/'"$aiu_comic_prefix/" | $aiu_dmenu
+                putln $episodes | eval $conf_dmenu
             fi
         else
             exit 1
         fi
     else
-        printf "%s\n%s" "The backlog is empty" "Try adding something with 'aiu add'" | $aiu_dmenu && exit 1
+      printf "%s\n%s" "The backlog is empty" "Try adding something with 'aiu add'" | eval $conf_dmenu && exit 1
     fi
+    END
 }
 
 aiu_clean() {
-    sort "$aiu_home/backlog" | sed -e 's/^${aiu_video_prefix}//' -e 's/^${aiu_comic_prefix}//' -e 's/[]\/$*.^|[]/\\&/g' | while read -r name; do
-        target="$(find "$aiu_video_library" "$aiu_comic_library" -type f -name "*$name*")"
-        if [ -z "$target" ]; then
-            sed -i "/$name/d" "$aiu_home/backlog"
-        fi
+    LOCAL name; BEGIN
+    mv $aiu_home/backlog $aiu_home/backlog.temp
+    touch $aiu_home/backlog
+    sed -E -e s/^V// -e s/^C// $aiu_home/backlog.temp |
+    while read -r name; do
+        replacein name '"' ''
+        aiu_add $name
     done
+    rm $aiu_home/backlog.temp
+    END
 }
 
 aiu_init
-. "$aiu_home/settings"
-re_safe_video_prefix="$(echo "$aiu_video_prefix" | sed -e 's/[]\/$*.^|[]/\\&/g')"
-re_safe_comic_prefix="$(echo "$aiu_comic_prefix" | sed -e 's/[]\/$*.^|[]/\\&/g')"
+aiu_conf_load
 
-case "$1" in
-    list)
-        sort "$aiu_home/backlog" | sed -e 's/^\${aiu_video_prefix}//' -e 's/^\${aiu_comic_prefix}//'
+case $1 in
+    ( list|l )
+        sort -g $aiu_home/backlog | sed -E -e s/^V/${conf_vid_pre}/ -e s/^C/${conf_com_pre}/
         ;;
-    open)
+    ( open|o )
         aiu_open
         ;;
-    add)
-        if [ "$2" = "dir" ];then
-            aiu_add_dir
-        else
-            aiu_add "$2"
-        fi
+    ( add|a )
+        aiu_add $2
         ;;
-    configure|conf)
-        $EDITOR "$aiu_home/settings"
+    ( dir|d )
+        aiu_add_dir
         ;;
-    clean)
+    ( show|s )
+        aiu_conf_show
+        ;;
+    ( write|w )
+        aiu_conf_show >| $aiu_home/config
+        ;;
+    ( edit|e )
+        $EDITOR $aiu_home/config
+        ;;
+    ( clean|c )
         aiu_clean
         ;;
-    help|*)
-        echo "$helpmsg"
+    ( help|h )
+        showusage
         ;;
+    ( * )
+        exit -u 1 "Invalid command"
 esac
-
-if [ -n "$(find "$aiu_home" -maxdepth 1 -name 'sed*' -print -quit)" ];then
-    rm -f "$aiu_home"/sed*
-fi
